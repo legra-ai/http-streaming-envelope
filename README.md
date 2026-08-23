@@ -102,6 +102,12 @@ The layer fails fast when the mandatory metadata extension is absent. It does
 not create a request identifier, guess the payload source, or silently remove
 the envelope when metadata is unavailable.
 
+Axum routers require an infallible layer service. For that boundary, use
+[`InfallibleStreamingEnvelopeLayer`]. It panics on a missing metadata
+extension or an invalid response header instead of converting a programming
+error into a silent fallback. General Tower services can use
+[`StreamingEnvelopeLayer`] when they need typed layer errors.
+
 ## Relationship to content negotiation
 
 Use [`http-content-negotiation`](https://crates.io/crates/http-content-negotiation)

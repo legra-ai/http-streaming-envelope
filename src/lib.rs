@@ -9,7 +9,10 @@ mod layer;
 mod metadata;
 
 pub use body::{EnvelopeBody, HEADER_PAYLOAD_BYTES, wrap_response};
-pub use layer::{EnvelopeServiceError, StreamingEnvelopeLayer, StreamingEnvelopeService};
+pub use layer::{
+    EnvelopeServiceError, InfallibleStreamingEnvelopeLayer, InfallibleStreamingEnvelopeService,
+    StreamingEnvelopeLayer, StreamingEnvelopeService,
+};
 pub use metadata::{
     HEADER_GENERATED_AT, HEADER_PAYLOAD_SOURCE, HEADER_REQUEST_ID, HEADER_TRACEPARENT,
     PayloadSource, RequestId, ResponseMetadata, TraceParent,

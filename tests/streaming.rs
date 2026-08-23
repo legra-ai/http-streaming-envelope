@@ -6,8 +6,9 @@ use bytes::Bytes;
 use http::{Request, Response, StatusCode};
 use http_body_util::{BodyExt, Full};
 use http_streaming_envelope::{
-    HEADER_PAYLOAD_BYTES, HEADER_PAYLOAD_SOURCE, HEADER_REQUEST_ID, PayloadSource, RequestId,
-    ResponseMetadata, StreamingEnvelopeLayer, wrap_response,
+    HEADER_PAYLOAD_BYTES, HEADER_PAYLOAD_SOURCE, HEADER_REQUEST_ID,
+    InfallibleStreamingEnvelopeLayer, PayloadSource, RequestId, ResponseMetadata,
+    StreamingEnvelopeLayer, wrap_response,
 };
 use tower::{Layer, Service, ServiceExt, service_fn};
 
@@ -70,6 +71,25 @@ async fn layer_requires_metadata_and_wraps_successful_responses() {
 
     let mut request = Request::new(());
     request.extensions_mut().insert(metadata());
+    let response = service
+        .ready()
+        .await
+        .expect("ready")
+        .call(request)
+        .await
+        .expect("wrapped response");
+    assert_eq!(response.headers()[HEADER_REQUEST_ID], "req-42");
+}
+
+#[tokio::test]
+async fn infallible_layer_wraps_axum_style_services() {
+    let service = service_fn(|_request: Request<()>| async {
+        Ok::<_, std::convert::Infallible>(Response::new(Full::new(Bytes::from_static(b"body"))))
+    });
+    let mut service = InfallibleStreamingEnvelopeLayer::new().layer(service);
+    let mut request = Request::new(());
+    request.extensions_mut().insert(metadata());
+
     let response = service
         .ready()
         .await

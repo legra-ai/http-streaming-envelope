@@ -1,5 +1,6 @@
 //! Tower integration for request-scoped response metadata.
 
+use std::convert::Infallible;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -31,9 +32,36 @@ impl<S> Layer<S> for StreamingEnvelopeLayer {
 }
 
 /// The service produced by [`StreamingEnvelopeLayer`].
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StreamingEnvelopeService<S> {
     pub(crate) inner: S,
+}
+
+/// A fail-fast Tower layer for Axum and other services that require an
+/// infallible service error.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct InfallibleStreamingEnvelopeLayer;
+
+impl InfallibleStreamingEnvelopeLayer {
+    /// Construct the fail-fast layer.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self
+    }
+}
+
+impl<S> Layer<S> for InfallibleStreamingEnvelopeLayer {
+    type Service = InfallibleStreamingEnvelopeService<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        InfallibleStreamingEnvelopeService { inner }
+    }
+}
+
+/// The service produced by [`InfallibleStreamingEnvelopeLayer`].
+#[derive(Clone, Debug)]
+pub struct InfallibleStreamingEnvelopeService<S> {
+    inner: S,
 }
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for StreamingEnvelopeService<S>
@@ -80,4 +108,41 @@ pub enum EnvelopeServiceError<E> {
     /// Response metadata could not be applied.
     #[error(transparent)]
     Metadata(#[from] MetadataError),
+}
+
+impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for InfallibleStreamingEnvelopeService<S>
+where
+    S: Service<Request<ReqBody>, Response = Response<ResBody>> + Clone + Send + 'static,
+    S::Future: Send + 'static,
+    S::Error: Into<Infallible> + Send + 'static,
+    ReqBody: Send + 'static,
+    ResBody: Body + Send + 'static,
+    ResBody::Data: Send + 'static,
+    ResBody::Error: Send + 'static,
+{
+    type Response = Response<EnvelopeBody<ResBody>>;
+    type Error = Infallible;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx).map_err(Into::into)
+    }
+
+    fn call(&mut self, request: Request<ReqBody>) -> Self::Future {
+        let metadata = request
+            .extensions()
+            .get::<ResponseMetadata>()
+            .cloned()
+            .unwrap_or_else(|| panic!("mandatory ResponseMetadata extension is missing"));
+        let future = self.inner.call(request);
+        Box::pin(async move {
+            let response = future.await.map_err(Into::into)?;
+            Ok(wrap_response(response, &metadata).unwrap_or_else(|error| {
+                panic!("streaming response envelope metadata failed: {error}");
+            }))
+        })
+    }
 }
