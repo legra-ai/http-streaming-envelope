@@ -4,10 +4,11 @@ use std::convert::Infallible;
 use std::future::Future;
 use std::pin::Pin;
 
-use http::{Request, Response};
+use http::{Method, Request, Response};
 use http_body::Body;
 use tower::{Layer, Service};
 
+use crate::body::wrap_head_response;
 use crate::{EnvelopeBody, MetadataError, ResponseMetadata, wrap_response};
 
 /// A Tower layer that requires [`ResponseMetadata`] in request extensions and
@@ -85,13 +86,18 @@ where
     }
 
     fn call(&mut self, request: Request<ReqBody>) -> Self::Future {
+        let is_head = request.method() == Method::HEAD;
         let Some(metadata) = request.extensions().get::<ResponseMetadata>().cloned() else {
             return Box::pin(async { Err(EnvelopeServiceError::MissingMetadata) });
         };
         let future = self.inner.call(request);
         Box::pin(async move {
             let response = future.await.map_err(EnvelopeServiceError::Inner)?;
-            wrap_response(response, &metadata).map_err(EnvelopeServiceError::Metadata)
+            if is_head {
+                wrap_head_response(response, &metadata).map_err(EnvelopeServiceError::Metadata)
+            } else {
+                wrap_response(response, &metadata).map_err(EnvelopeServiceError::Metadata)
+            }
         })
     }
 }
@@ -132,6 +138,7 @@ where
     }
 
     fn call(&mut self, request: Request<ReqBody>) -> Self::Future {
+        let is_head = request.method() == Method::HEAD;
         let metadata = request
             .extensions()
             .get::<ResponseMetadata>()
@@ -140,7 +147,12 @@ where
         let future = self.inner.call(request);
         Box::pin(async move {
             let response = future.await.map_err(Into::into)?;
-            Ok(wrap_response(response, &metadata).unwrap_or_else(|error| {
+            let response = if is_head {
+                wrap_head_response(response, &metadata)
+            } else {
+                wrap_response(response, &metadata)
+            };
+            Ok(response.unwrap_or_else(|error| {
                 panic!("streaming response envelope metadata failed: {error}");
             }))
         })

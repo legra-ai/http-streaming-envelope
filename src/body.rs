@@ -22,6 +22,7 @@ pin_project! {
         inner: B,
         payload_bytes: u64,
         completion_emitted: bool,
+        emit_completion: bool,
     }
 }
 
@@ -31,6 +32,16 @@ impl<B> EnvelopeBody<B> {
             inner,
             payload_bytes: 0,
             completion_emitted: false,
+            emit_completion: true,
+        }
+    }
+
+    pub(crate) fn passthrough(inner: B) -> Self {
+        Self {
+            inner,
+            payload_bytes: 0,
+            completion_emitted: true,
+            emit_completion: false,
         }
     }
 }
@@ -47,6 +58,9 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         let mut this = self.project();
+        if !*this.emit_completion {
+            return this.inner.as_mut().poll_frame(cx);
+        }
         match this.inner.as_mut().poll_frame(cx) {
             Poll::Ready(Some(Ok(frame))) => match frame.into_data() {
                 Ok(data) => {
@@ -74,7 +88,7 @@ where
     }
 
     fn is_end_stream(&self) -> bool {
-        self.completion_emitted && self.inner.is_end_stream()
+        (!self.emit_completion || self.completion_emitted) && self.inner.is_end_stream()
     }
 
     fn size_hint(&self) -> http_body::SizeHint {
@@ -97,12 +111,40 @@ pub fn wrap_response<B>(
 where
     B: Body,
 {
+    let emit_completion = should_emit_completion(&response);
     metadata.apply(response.headers_mut())?;
-    response.headers_mut().append(
-        TRAILER,
-        HeaderValue::from_static("streaming-envelope-payload-bytes"),
-    );
-    Ok(response.map(EnvelopeBody::new))
+    if emit_completion {
+        response.headers_mut().append(
+            TRAILER,
+            HeaderValue::from_static("streaming-envelope-payload-bytes"),
+        );
+    }
+    Ok(response.map(|body| {
+        if emit_completion {
+            EnvelopeBody::new(body)
+        } else {
+            EnvelopeBody::passthrough(body)
+        }
+    }))
+}
+
+pub(crate) fn wrap_head_response<B>(
+    mut response: http::Response<B>,
+    metadata: &ResponseMetadata,
+) -> Result<http::Response<EnvelopeBody<B>>, MetadataError>
+where
+    B: Body,
+{
+    metadata.apply(response.headers_mut())?;
+    Ok(response.map(EnvelopeBody::passthrough))
+}
+
+fn should_emit_completion<B>(response: &http::Response<B>) -> bool {
+    let status = response.status();
+    !status.is_informational()
+        && status != http::StatusCode::NO_CONTENT
+        && status != http::StatusCode::NOT_MODIFIED
+        && !response.headers().contains_key(http::header::UPGRADE)
 }
 
 fn add_completion_trailer(headers: &mut HeaderMap, payload_bytes: u64) {

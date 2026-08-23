@@ -68,6 +68,9 @@ let response = wrap_response(response, &metadata)?;
 `wrap_response` never reads the body. When the body completes, the wrapped
 body emits `streaming-envelope-payload-bytes` as a trailer. If the body fails,
 the original body error is returned and no false completion metadata is sent.
+Bodyless responses (`1xx`, `204`, `304`), upgrade responses, and `HEAD`
+responses receive the start metadata but pass their bodies through without a
+completion trailer because those HTTP forms cannot carry one.
 
 The HTTP status remains the canonical status. It is already delivered before
 the payload and is therefore not duplicated into a second application field

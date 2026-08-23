@@ -101,6 +101,18 @@ async fn infallible_layer_wraps_axum_style_services() {
 }
 
 #[test]
+fn bodyless_responses_do_not_advertise_completion_trailers() {
+    let response = Response::builder()
+        .status(StatusCode::NO_CONTENT)
+        .body(Full::new(Bytes::new()))
+        .expect("response");
+    let metadata = metadata();
+    let response = wrap_response(response, &metadata).expect("wrapped response");
+
+    assert!(!response.headers().contains_key("trailer"));
+}
+
+#[test]
 fn identifiers_are_validated_before_they_reach_headers() {
     assert!(RequestId::new("").is_err());
     assert!(RequestId::new("contains\nnewline").is_err());
