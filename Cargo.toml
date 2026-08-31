@@ -7,6 +7,7 @@ edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
+build = "build.rs"
 repository = "https://github.com/legra-ai/http-streaming-envelope"
 keywords = ["http", "streaming", "tower", "axum", "backpressure"]
 categories = ["web-programming::http-server", "web-programming::http-client"]
@@ -32,6 +33,9 @@ tower = "0.5"
 http-body-util = "0.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
+
+[build-dependencies]
+rhusky = "0.0.6"
 
 [lints.rust]
 missing_docs = "deny"
