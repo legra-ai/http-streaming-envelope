@@ -4,10 +4,10 @@ if ! rustc --version > /dev/null 2>&1; then
     exit 1
 fi
 
-if cargo fmt -- --check; then
+if ./scripts/fmt.sh --check; then
     :
 else
-    echo "Format check failed. Run: cargo fmt"
+    echo "Format check failed. Run: ./scripts/fmt.sh"
     exit 1
 fi
 
