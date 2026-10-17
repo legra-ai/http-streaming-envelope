@@ -1,4 +1,6 @@
 /target/
-Cargo.lock
 CHANGELOG.md
 .DS_Store
+
+__pycache__/
+*.pyc

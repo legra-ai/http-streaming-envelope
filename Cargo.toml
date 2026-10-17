@@ -4,7 +4,7 @@ version = "0.1.2"
 description = "HTTP-native streaming response metadata with bounded completion trailers"
 authors = ["Jacobus Geluk <jacobus.geluk@dataroad.com>"]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.85.0"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 build = "build.rs"
@@ -17,7 +17,10 @@ include = [
     "tests/**",
     "Cargo.toml",
     "README.md",
-    "LICENSE-*",
+    "Cargo.lock",
+    "build.rs",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
 ]
 
 [dependencies]
@@ -35,7 +38,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
 
 [build-dependencies]
-rhusky = "0.0.6"
+rhusky = "2.0.1"
 
 [lints.rust]
 missing_docs = "deny"
