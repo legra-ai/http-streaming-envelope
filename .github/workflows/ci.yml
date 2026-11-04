@@ -10,7 +10,7 @@ permissions:
   contents: read
 jobs:
   ci:
-    uses: legra-ai/github-actions/.github/workflows/cargo-maintenance.yml@5c494a21a1df770e526e069ddf0dac0c0797e374
+    uses: legra-ai/github-actions/.github/workflows/cargo-maintenance.yml@2c455e97243afe1b52c2d153b9178a8e85a41886
     with:
       crate-name: http-streaming-envelope
       kind: library
